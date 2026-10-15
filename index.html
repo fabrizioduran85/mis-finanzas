@@ -122,7 +122,8 @@ h3:after{content:"";position:absolute;left:0;bottom:-1px;width:38px;height:2px;b
 </section>
 
 <section class="view" id="v-fix">
- <div class="card"><h3>Gastos fijos y suscripciones</h3><div class="sub" style="margin-bottom:12px">Emoji · nombre · precio mensual · día de cobro · activo. Pon el precio de cada uno y pulsa “Aplicar a este mes”.</div><div id="fxl"></div><div class="row" style="margin-top:12px"><button class="btn g" id="fxadd">+ Agregar gasto fijo</button><button class="btn" id="fxap">Aplicar al mes seleccionado</button></div></div>
+ <div class="card"><h3>Ingresos fijos mensuales</h3><div class="sub" style="margin-bottom:12px">Sueldo, mesada, pensión, etc. Escribe el monto y el día del mes en que te llega.</div><div id="fxi"></div><button class="btn g" id="fxadd2" style="margin-top:12px">+ Agregar ingreso fijo</button></div>
+ <div class="card"><h3>Gastos fijos y suscripciones</h3><div class="sub" style="margin-bottom:12px">Emoji · nombre · precio mensual · día de cobro · activo. Pon el precio de cada uno y pulsa “Aplicar a este mes”.</div><div id="fxl"></div><div class="row" style="margin-top:12px"><button class="btn g" id="fxadd">+ Agregar gasto fijo</button><button class="btn" id="fxap">Aplicar fijos al mes seleccionado</button></div></div>
  <div class="card"><h3>Resumen de fijos</h3><div id="fxs"></div></div>
 </section>
 <section class="view" id="v-debt">
@@ -151,7 +152,7 @@ const $=s=>document.querySelector(s),KEY='gastos-v1',TD=()=>{const d=new Date();
 const DEF={cfg:{cur:'S/',bud:1500,pms:['Efectivo','Yape / Plin','Tarjeta'],ins:['Sueldo','Negocio','Regalo','Otros'],cats:[{n:'Comida',c:'#e07a5f',e:'🍔',l:0},{n:'Transporte',c:'#3d8bd9',e:'🚌',l:0},{n:'Ocio',c:'#9b6fd6',e:'🎮',l:0},{n:'Salud',c:'#2e9e6b',e:'💊',l:0},{n:'Estudios',c:'#d9a73d',e:'📚',l:0},{n:'Otros',c:'#8a98ad',e:'🏷️',l:0}]},items:[],goals:[]};
 let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}S=S||{};
 S.cfg=Object.assign(JSON.parse(JSON.stringify(DEF.cfg)),S.cfg);S.items=S.items||[];S.goals=S.goals||[];
-S.fixed=S.fixed||[{id:1,n:'Paramount+',e:'📺',p:0,dd:1,on:true},{id:2,n:'Spotify',e:'🎵',p:0,dd:1,on:true}];S.debts=S.debts||[];
+S.fixed=S.fixed||[{id:1,n:'Paramount+',e:'📺',p:0,dd:1,on:true},{id:2,n:'Spotify',e:'🎵',p:0,dd:1,on:true}];S.debts=S.debts||[];if(!S.seedI){S.fixed.push({id:3,n:'Sueldo',e:'💵',p:0,dd:1,on:true,k:'i'});S.seedI=1}
 let sel=TD().slice(0,7),editId=null,kind='g',prev=0;
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.cfg.url&&S.cfg.auto){clearTimeout(window._st);window._st=setTimeout(()=>sync('up'),1500)}};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -246,7 +247,7 @@ $('#exp').onclick=()=>{
  S.items.forEach(i=>{const k=i.d.slice(0,7);by[k]=by[k]||{Mes:k,Ingresos:0,Gastos:0};by[k][isI(i)?'Ingresos':'Gastos']+=i.a});
  const r=Object.values(by).sort((a,b)=>a.Mes<b.Mes?-1:1).map(x=>({...x,Balance:x.Ingresos-x.Gastos})),wb=XLSX.utils.book_new();
  XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(g),'Movimientos');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(r),'Resumen');
- XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.goals.map(x=>({Meta:x.n,Objetivo:x.t,Ahorrado:x.s}))),'Metas');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.fixed.map(x=>({Fijo:x.n,Precio:x.p,Día:x.dd,Activo:x.on?'Sí':'No'}))),'Fijos');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.debts.map(x=>({Deuda:x.n,Tipo:x.k=='d'?'Debo':'Me deben',Total:x.t,Pagado:x.p,Vence:x.due}))),'Deudas');XLSX.writeFile(wb,'mis-finanzas.xlsx');toast('Excel exportado ✓')
+ XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.goals.map(x=>({Meta:x.n,Objetivo:x.t,Ahorrado:x.s}))),'Metas');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.fixed.map(x=>({Tipo:x.k=='i'?'Ingreso':'Gasto',Fijo:x.n,Precio:x.p,Día:x.dd,Activo:x.on?'Sí':'No'}))),'Fijos');XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(S.debts.map(x=>({Deuda:x.n,Tipo:x.k=='d'?'Debo':'Me deben',Total:x.t,Pagado:x.p,Vence:x.due}))),'Deudas');XLSX.writeFile(wb,'mis-finanzas.xlsx');toast('Excel exportado ✓')
 };
 $('#imp').onclick=()=>$('#file').click();
 $('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();
@@ -276,21 +277,26 @@ function cmp(){
 $('#cmp').onchange=e=>{if(e.target.id=='cA')cmpA=e.target.value;if(e.target.id=='cB')cmpB=e.target.value;cmp()};
 $('#cmp').onclick=e=>{const r=e.target.closest('.cc');if(r){const c=r.dataset.c;cOpen.has(c)?cOpen.delete(c):cOpen.add(c);cmp()}};
 function sumFx(){
- const tm=S.fixed.filter(f=>f.on).reduce((s,f)=>s+(+f.p||0),0),inc=sum(inM().filter(isI));
- $('#fxs').innerHTML=`<div class="grid"><div><span class="sub">Total mensual</span><b style="display:block;font-size:22px">${money(tm)}</b></div><div><span class="sub">Costo anual</span><b style="display:block;font-size:22px">${money(tm*12)}</b></div><div><span class="sub">% de tus ingresos del mes</span><b style="display:block;font-size:22px">${inc?Math.round(tm/inc*100)+'%':'—'}</b></div></div>`;
+ const on=S.fixed.filter(f=>f.on),ti=on.filter(f=>f.k=='i').reduce((s,f)=>s+(+f.p||0),0),tg=on.filter(f=>f.k!='i').reduce((s,f)=>s+(+f.p||0),0),b='display:block;font-size:22px';
+ $('#fxs').innerHTML=`<div class="grid"><div><span class="sub">Ingresos fijos / mes</span><b style="${b};color:var(--ok)">${money(ti)}</b></div><div><span class="sub">Gastos fijos / mes</span><b style="${b}">${money(tg)}</b></div><div><span class="sub">Te queda libre (fijos)</span><b style="${b}">${money(ti-tg)}</b></div><div><span class="sub">Costo anual de fijos</span><b style="${b}">${money(tg*12)}</b></div><div><span class="sub">Fijos = % de tu ingreso fijo</span><b style="${b}">${ti?Math.round(tg/ti*100)+'%':'—'}</b></div></div>`;
 }
+const fxr=(f,i)=>`<div class="fr"><input value="${esc(f.e||'')}" data-fi="${i}" data-k="e" style="text-align:center;padding:8px 2px"><input value="${esc(f.n)}" placeholder="Nombre" data-fi="${i}" data-k="n"><input type="number" inputmode="decimal" value="${f.p||''}" placeholder="Monto" data-fi="${i}" data-k="p"><input type="number" value="${f.dd}" min="1" max="31" placeholder="Día" data-fi="${i}" data-k="dd" style="padding:11px 4px"><input type="checkbox" ${f.on?'checked':''} data-fi="${i}" data-k="on" style="width:22px;height:22px"><button class="x" data-fd="${i}">🗑️</button></div>`;
 function fixed(){
- $('#fxl').innerHTML=S.fixed.map((f,i)=>`<div class="fr"><input value="${esc(f.e||'')}" data-fi="${i}" data-k="e" style="text-align:center;padding:8px 2px"><input value="${esc(f.n)}" placeholder="Nombre" data-fi="${i}" data-k="n"><input type="number" inputmode="decimal" value="${f.p||''}" placeholder="Precio" data-fi="${i}" data-k="p"><input type="number" value="${f.dd}" min="1" max="31" placeholder="Día" data-fi="${i}" data-k="dd" style="padding:11px 4px"><input type="checkbox" ${f.on?'checked':''} data-fi="${i}" data-k="on" style="width:22px;height:22px"><button class="x" data-fd="${i}">🗑️</button></div>`).join('')||'<div class="empty">Sin gastos fijos</div>';
+ const L=k=>S.fixed.map((f,i)=>[f,i]).filter(([f])=>(f.k=='i')==(k=='i')).map(([f,i])=>fxr(f,i)).join('');
+ $('#fxl').innerHTML=L('g')||'<div class="empty">Sin gastos fijos</div>';
+ $('#fxi').innerHTML=L('i')||'<div class="empty">Sin ingresos fijos</div>';
  sumFx();
 }
-$('#fxl').oninput=e=>{const i=e.target.dataset.fi;if(i==null)return;const k=e.target.dataset.k,f=S.fixed[i];f[k]=k=='on'?e.target.checked:(k=='n'||k=='e')?e.target.value:+e.target.value;save();sumFx()};
-$('#fxl').onclick=e=>{const i=e.target.dataset.fd;if(i!=null){S.fixed.splice(i,1);save();fixed()}};
-$('#fxadd').onclick=()=>{S.fixed.push({id:Date.now(),n:'',e:'🔁',p:0,dd:1,on:true});save();fixed()};
+const fxIn=e=>{const i=e.target.dataset.fi;if(i==null)return;const k=e.target.dataset.k,f=S.fixed[i];f[k]=k=='on'?e.target.checked:(k=='n'||k=='e')?e.target.value:+e.target.value;save();sumFx()};
+const fxClk=e=>{const i=e.target.dataset.fd;if(i!=null){S.fixed.splice(i,1);save();fixed()}};
+$('#fxl').oninput=$('#fxi').oninput=fxIn;$('#fxl').onclick=$('#fxi').onclick=fxClk;
+$('#fxadd').onclick=()=>{S.fixed.push({id:Date.now(),n:'',e:'🔁',p:0,dd:1,on:true,k:'g'});save();fixed()};
+$('#fxadd2').onclick=()=>{S.fixed.push({id:Date.now(),n:'Sueldo',e:'💵',p:0,dd:1,on:true,k:'i'});save();fixed()};
 $('#fxap').onclick=()=>{
  if(!S.cfg.cats.find(c=>c.n=='Suscripciones'))S.cfg.cats.push({n:'Suscripciones',c:'#5c7cfa',e:'🔁',l:0});
  const[y,m]=sel.split('-'),dim=new Date(y,m,0).getDate();let n=0;
- S.fixed.filter(f=>f.on&&f.p>0&&!S.items.some(i=>i.fx==f.id&&i.d.startsWith(sel))).forEach(f=>{S.items.push({id:Date.now()+n,k:'g',a:+f.p,c:'Suscripciones',d:sel+'-'+String(Math.min(f.dd||1,dim)).padStart(2,'0'),m:S.cfg.pms[0],t:f.n,fx:f.id});n++});
- save();all();toast(n?n+' gastos fijos aplicados a '+mname(sel):'Nada nuevo: pon un precio mayor a 0');
+ S.fixed.filter(f=>f.on&&f.p>0&&!S.items.some(i=>i.fx==f.id&&i.d.startsWith(sel))).forEach(f=>{const inc=f.k=='i';S.items.push({id:Date.now()+n,k:inc?'i':'g',a:+f.p,c:inc?(f.n||'Ingreso fijo'):'Suscripciones',d:sel+'-'+String(Math.min(f.dd||1,dim)).padStart(2,'0'),m:S.cfg.pms[0],t:f.n,fx:f.id});n++});
+ save();all();toast(n?n+' movimientos fijos aplicados a '+mname(sel):'Nada nuevo: pon un monto mayor a 0');
 };
 function debts(){
  const pe=k=>S.debts.filter(d=>d.k==k).reduce((s,d)=>s+Math.max(d.t-d.p,0),0);
