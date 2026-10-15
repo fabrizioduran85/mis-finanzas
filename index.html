@@ -99,7 +99,7 @@ h3:after{content:"";position:absolute;left:0;bottom:-1px;width:38px;height:2px;b
  <div class="chips"><div class="chip">⬆ Ingresos<b id="ti">0</b></div><div class="chip">⬇ Gastos<b id="tg">0</b></div><div class="chip">💰 Ahorro<b id="sr">0%</b></div></div></div>
  <div class="card"><h3>📅 Tu dinero de hoy</h3><div class="today"><div><div class="sub">Puedes gastar hoy</div><div class="n" id="al">—</div></div><div style="flex:1"><div class="sub" id="ts">Gastado hoy: 0</div><div class="bar"><i id="tb"></i></div></div></div></div>
  <div class="grid">
-  <div class="card kpi"><span class="sub">Ahorro / saldo total acumulado</span><b id="bal">0</b></div>
+  <div class="card kpi"><span class="sub">Ahorro / saldo total acumulado</span><b id="bal">0</b><div class="sub" id="balg" style="text-transform:none;letter-spacing:0;margin-top:2px"></div></div>
   <div class="card kpi"><span class="sub">Promedio diario</span><b id="avg">0</b></div>
   <div class="card kpi"><span class="sub">Presupuesto restante</span><b id="left">0</b></div>
   <div class="card kpi"><span class="sub">Movimientos del mes</span><b id="cnt">0</b></div>
@@ -154,6 +154,20 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}S=S||{};
 S.cfg=Object.assign(JSON.parse(JSON.stringify(DEF.cfg)),S.cfg);S.items=S.items||[];S.goals=S.goals||[];
 S.fixed=S.fixed||[{id:1,n:'Paramount+',e:'📺',p:0,dd:1,on:true},{id:2,n:'Spotify',e:'🎵',p:0,dd:1,on:true}];S.debts=S.debts||[];if(!S.seedI){S.fixed.push({id:3,n:'Sueldo',e:'💵',p:0,dd:1,on:true,k:'i'});S.seedI=1}
 let sel=TD().slice(0,7),editId=null,kind='g',prev=0;
+S.fxDone=S.fxDone||{};let _u=Date.now();const nid=()=>++_u;
+const balance=()=>sum(S.items.filter(isI))-sum(S.items.filter(i=>!isI(i)))+(+S.cfg.ini||0);
+const needCat=(n,c,e)=>{if(!S.cfg.cats.find(x=>x.n==n))S.cfg.cats.push({n,c,e,l:0})};
+function applyFx(month,onlyDue,force){
+ const[y,m]=month.split('-'),dim=new Date(y,m,0).getDate(),td=new Date().getDate();let n=0;
+ S.fixed.filter(f=>f.on&&+f.p>0).forEach(f=>{
+  const key=f.id+'@'+month,day=Math.min(f.dd||1,dim);
+  if(S.items.some(i=>i.fx==f.id&&i.d.startsWith(month)))return;
+  if(!force&&S.fxDone[key])return;
+  if(onlyDue&&day>td)return;
+  const inc=f.k=='i';if(!inc)needCat('Suscripciones','#5c7cfa','🔁');
+  S.items.push({id:nid(),k:inc?'i':'g',a:+f.p,c:inc?(f.n||'Ingreso fijo'):'Suscripciones',d:month+'-'+String(day).padStart(2,'0'),m:S.cfg.pms[0],t:f.n,fx:f.id});
+  S.fxDone[key]=1;n++});
+ return n}
 const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.cfg.url&&S.cfg.auto){clearTimeout(window._st);window._st=setTimeout(()=>sync('up'),1500)}};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>S.cfg.cur+' '+(+n).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -171,7 +185,7 @@ function dash(){
  const it=inM(),inc=sum(it.filter(isI)),gs=it.filter(i=>!isI(i)),tot=sum(gs),all=sum(S.items.filter(isI))-sum(S.items.filter(i=>!isI(i)))+(+S.cfg.ini||0);
  count($('#tm'),inc-tot,prev);prev=inc-tot;
  $('#ti').textContent=money(inc);$('#tg').textContent=money(tot);$('#sr').textContent=inc?Math.round((inc-tot)/inc*100)+'%':'—';
- $('#bal').textContent=money(all);$('#cnt').textContent=it.length;
+ $('#bal').textContent=money(all);{const gs2=sum(S.goals.map(g=>({a:g.s})));$('#balg').textContent=S.goals.length?'Incluye '+money(gs2)+' apartados en metas':''}$('#cnt').textContent=it.length;
  const[y,m]=sel.split('-'),dim=new Date(y,m,0).getDate(),now=new Date(),cur=sel==TD().slice(0,7),day=cur?now.getDate():dim,b=+S.cfg.bud||0;
  $('#avg').textContent=money(tot/day);$('#left').textContent=b?money(b-tot):'—';$('#left').style.color=b&&b-tot<0?'var(--bad)':'var(--ok)';
  const td=sum(gs.filter(i=>i.d==TD()));
@@ -226,10 +240,10 @@ $('#fab').onclick=()=>openM();$('#cancel').onclick=()=>$('#md').classList.remove
 $('#save').onclick=()=>{
  const a=parseFloat($('#a').value);if(!(a>0))return toast('Ingresa un monto válido');
  const o={k:kind,a,c:$('#c').value,d:$('#d').value||TD(),m:$('#mp').value,t:$('#t').value.trim()};
- if(editId)Object.assign(S.items.find(i=>i.id==editId),o);else S.items.push({id:Date.now(),...o});
+ if(editId){const it=S.items.find(i=>i.id==editId);if(it.db){const d=S.debts.find(z=>z.id==it.db);if(d)d.p=Math.min(d.t,Math.max(0,d.p+a-it.a))}Object.assign(it,o)}else S.items.push({id:nid(),...o});
  sel=o.d.slice(0,7);save();$('#md').classList.remove('on');all();toast(kind=='i'?'Ingreso guardado ✓':'Gasto guardado ✓');
 };
-$('#list').onclick=e=>{const x=e.target.dataset.x,ed=e.target.dataset.e;if(x){S.items=S.items.filter(i=>i.id!=x);save();all();toast('Eliminado')}if(ed)openM(ed)};
+$('#list').onclick=e=>{const x=e.target.dataset.x,ed=e.target.dataset.e;if(x){const it=S.items.find(i=>i.id==x);if(it&&it.db){const d=S.debts.find(z=>z.id==it.db);if(d)d.p=Math.max(0,d.p-it.a)}S.items=S.items.filter(i=>i.id!=x);save();all();toast('Eliminado')}if(ed)openM(ed)};
 $('#q').oninput=list;$('#msel').onchange=e=>{sel=e.target.value;all()};
 $('#mo').onclick=e=>{const m=e.target.closest('.mc');if(m){sel=m.dataset.m;all()}};
 $('#gadd').onclick=()=>{const t=parseFloat($('#gt').value),n=$('#gn').value.trim();if(!n||!(t>0))return toast('Completa nombre y monto');S.goals.push({id:Date.now(),n,t,s:0,e:$('#ge').value||'🎯'});$('#gn').value='';$('#gt').value='';save();goals()};
@@ -256,7 +270,7 @@ $('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new File
    const k=String(r.Tipo||'').toLowerCase().startsWith('i')?'i':'g',c=r['Categoría']||'Otros';if(k=='g'&&!S.cfg.cats.find(x=>x.n==c))S.cfg.cats.push({n:c,c:'#8a98ad',e:'🏷️',l:0});
    S.items.push({id:Date.now()+n,k,a,c,d,m:r['Método']||S.cfg.pms[0],t:r['Descripción']||''});n++});save();all();toast(n+' movimientos importados')}catch(x){toast('No se pudo leer el archivo')}};
  rd.readAsArrayBuffer(f);e.target.value=''};
-$('#wipe').onclick=()=>{if(confirm('¿Borrar todos los datos?')){S.items=[];S.goals=[];save();all();toast('Datos borrados')}};
+$('#wipe').onclick=()=>{if(confirm('¿Borrar todos los datos?')){S.items=[];S.goals=[];S.fxDone={};save();all();toast('Datos borrados')}};
 
 let cmpA=null,cmpB=null,lastSel=null,cOpen=new Set();
 function cmp(){
@@ -278,7 +292,7 @@ $('#cmp').onchange=e=>{if(e.target.id=='cA')cmpA=e.target.value;if(e.target.id==
 $('#cmp').onclick=e=>{const r=e.target.closest('.cc');if(r){const c=r.dataset.c;cOpen.has(c)?cOpen.delete(c):cOpen.add(c);cmp()}};
 function sumFx(){
  const on=S.fixed.filter(f=>f.on),ti=on.filter(f=>f.k=='i').reduce((s,f)=>s+(+f.p||0),0),tg=on.filter(f=>f.k!='i').reduce((s,f)=>s+(+f.p||0),0),b='display:block;font-size:22px';
- $('#fxs').innerHTML=`<div class="grid"><div><span class="sub">Ingresos fijos / mes</span><b style="${b};color:var(--ok)">${money(ti)}</b></div><div><span class="sub">Gastos fijos / mes</span><b style="${b}">${money(tg)}</b></div><div><span class="sub">Te queda libre (fijos)</span><b style="${b}">${money(ti-tg)}</b></div><div><span class="sub">Costo anual de fijos</span><b style="${b}">${money(tg*12)}</b></div><div><span class="sub">Fijos = % de tu ingreso fijo</span><b style="${b}">${ti?Math.round(tg/ti*100)+'%':'—'}</b></div></div>`;
+ $('#fxs').innerHTML=`<div class="grid"><div><span class="sub">Ingresos fijos / mes</span><b style="${b};color:var(--ok)">${money(ti)}</b></div><div><span class="sub">Gastos fijos / mes</span><b style="${b}">${money(tg)}</b></div><div><span class="sub">Te queda libre (fijos)</span><b style="${b}">${money(ti-tg)}</b></div><div><span class="sub">Costo anual de fijos</span><b style="${b}">${money(tg*12)}</b></div><div><span class="sub">Ahorro total actual</span><b style="${b}">${money(balance())}</b></div><div><span class="sub">Fijos = % de tu ingreso fijo</span><b style="${b}">${ti?Math.round(tg/ti*100)+'%':'—'}</b></div></div>`;
 }
 const fxr=(f,i)=>`<div class="fr"><input value="${esc(f.e||'')}" data-fi="${i}" data-k="e" style="text-align:center;padding:8px 2px"><input value="${esc(f.n)}" placeholder="Nombre" data-fi="${i}" data-k="n"><input type="number" inputmode="decimal" value="${f.p||''}" placeholder="Monto" data-fi="${i}" data-k="p"><input type="number" value="${f.dd}" min="1" max="31" placeholder="Día" data-fi="${i}" data-k="dd" style="padding:11px 4px"><input type="checkbox" ${f.on?'checked':''} data-fi="${i}" data-k="on" style="width:22px;height:22px"><button class="x" data-fd="${i}">🗑️</button></div>`;
 function fixed(){
@@ -289,22 +303,25 @@ function fixed(){
 }
 const fxIn=e=>{const i=e.target.dataset.fi;if(i==null)return;const k=e.target.dataset.k,f=S.fixed[i];f[k]=k=='on'?e.target.checked:(k=='n'||k=='e')?e.target.value:+e.target.value;save();sumFx()};
 const fxClk=e=>{const i=e.target.dataset.fd;if(i!=null){S.fixed.splice(i,1);save();fixed()}};
-$('#fxl').oninput=$('#fxi').oninput=fxIn;$('#fxl').onclick=$('#fxi').onclick=fxClk;
+$('#fxl').oninput=$('#fxi').oninput=fxIn;
+const fxCh=e=>{const i=e.target.dataset.fi;if(i==null)return;const f=S.fixed[i],cm=TD().slice(0,7);
+ if(+f.p>0)S.items.forEach(t=>{if(t.fx==f.id&&t.d.startsWith(cm)&&t.a!=+f.p)t.a=+f.p});
+ const n=applyFx(cm,true);save();dash();cmp();list();sumFx();if(n)toast(n+' fijo(s) sumado(s) a tu balance ✓')};
+$('#fxl').onchange=$('#fxi').onchange=fxCh;$('#fxl').onclick=$('#fxi').onclick=fxClk;
 $('#fxadd').onclick=()=>{S.fixed.push({id:Date.now(),n:'',e:'🔁',p:0,dd:1,on:true,k:'g'});save();fixed()};
 $('#fxadd2').onclick=()=>{S.fixed.push({id:Date.now(),n:'Sueldo',e:'💵',p:0,dd:1,on:true,k:'i'});save();fixed()};
-$('#fxap').onclick=()=>{
- if(!S.cfg.cats.find(c=>c.n=='Suscripciones'))S.cfg.cats.push({n:'Suscripciones',c:'#5c7cfa',e:'🔁',l:0});
- const[y,m]=sel.split('-'),dim=new Date(y,m,0).getDate();let n=0;
- S.fixed.filter(f=>f.on&&f.p>0&&!S.items.some(i=>i.fx==f.id&&i.d.startsWith(sel))).forEach(f=>{const inc=f.k=='i';S.items.push({id:Date.now()+n,k:inc?'i':'g',a:+f.p,c:inc?(f.n||'Ingreso fijo'):'Suscripciones',d:sel+'-'+String(Math.min(f.dd||1,dim)).padStart(2,'0'),m:S.cfg.pms[0],t:f.n,fx:f.id});n++});
- save();all();toast(n?n+' movimientos fijos aplicados a '+mname(sel):'Nada nuevo: pon un monto mayor a 0');
-};
+$('#fxap').onclick=()=>{const n=applyFx(sel,false,true);save();all();toast(n?n+' movimientos fijos aplicados a '+mname(sel):'Nada nuevo: pon un monto mayor a 0 o ya están aplicados')};
 function debts(){
  const pe=k=>S.debts.filter(d=>d.k==k).reduce((s,d)=>s+Math.max(d.t-d.p,0),0);
- $('#dbs').innerHTML=`<div class="grid" style="margin-bottom:16px"><div class="card kpi" style="margin:0"><span class="sub">Yo debo (pendiente)</span><b style="color:var(--bad)">${money(pe('d'))}</b></div><div class="card kpi" style="margin:0"><span class="sub">Me deben (pendiente)</span><b style="color:var(--ok)">${money(pe('c'))}</b></div><div class="card kpi" style="margin:0"><span class="sub">Posición neta</span><b>${money(pe('c')-pe('d'))}</b></div></div>`;
+ $('#dbs').innerHTML=`<div class="grid" style="margin-bottom:16px"><div class="card kpi" style="margin:0"><span class="sub">Yo debo (pendiente)</span><b style="color:var(--bad)">${money(pe('d'))}</b></div><div class="card kpi" style="margin:0"><span class="sub">Me deben (pendiente)</span><b style="color:var(--ok)">${money(pe('c'))}</b></div><div class="card kpi" style="margin:0"><span class="sub">Posición neta</span><b>${money(pe('c')-pe('d'))}</b></div><div class="card kpi" style="margin:0"><span class="sub">Ahorro total actual</span><b>${money(balance())}</b></div></div>`;
  $('#dbl').innerHTML=S.debts.length?S.debts.map(d=>{const p=Math.min(100,d.p/d.t*100),late=d.due&&d.due<TD()&&p<100;return`<div class="card"><div class="row" style="justify-content:space-between"><b>${d.k=='d'?'🔻 Debo a':'🔺 Me debe'} ${esc(d.n)}</b><span class="amt">${money(Math.max(d.t-d.p,0))}</span></div><div class="sub">${money(d.p)} de ${money(d.t)} · ${Math.round(p)}%${d.due?' · vence '+d.due:''}${late?' <b style="color:var(--bad)">· VENCIDA</b>':''}</div><div class="bar"><i style="width:${p}%;background:${d.k=='d'?'var(--bad)':'var(--ok)'}"></i></div><div class="row" style="margin-top:10px"><input type="number" inputmode="decimal" id="dp${d.id}" placeholder="${d.k=='d'?'Pago':'Cobro'}" style="flex:1;min-width:90px"><button class="btn" data-dp="${d.id}">Registrar</button><button class="x" data-dd="${d.id}">🗑️</button></div></div>`}).join(''):'<div class="card empty">Sin deudas registradas 🎉</div>';
 }
 $('#dadd').onclick=()=>{const t=parseFloat($('#dt').value),n=$('#dbn').value.trim();if(!n||!(t>0))return toast('Completa nombre y monto');S.debts.push({id:Date.now(),n,k:$('#dk').value,t,p:0,due:$('#dv').value});$('#dbn').value='';$('#dt').value='';save();debts();toast('Deuda agregada')};
-$('#dbl').onclick=e=>{const a=e.target.dataset.dp,d=e.target.dataset.dd;if(a){const v=parseFloat($('#dp'+a).value);if(v>0){S.debts.find(x=>x.id==a).p+=v;save();debts();toast('Registrado ✓')}}if(d){S.debts=S.debts.filter(x=>x.id!=d);save();debts()}};
+$('#dbl').onclick=e=>{const a=e.target.dataset.dp,d=e.target.dataset.dd;if(a){const d=S.debts.find(x=>x.id==a),v=parseFloat($('#dp'+a).value),rest=d.t-d.p;
+ if(!(v>0))return toast('Ingresa un monto');if(rest<=0)return toast('Esta deuda ya está saldada');
+ const w=Math.min(v,rest),pay=d.k=='d';if(pay)needCat('Deudas','#d1495b','🤝');
+ S.items.push({id:nid(),k:pay?'g':'i',a:w,c:pay?'Deudas':'Cobro de deuda',d:TD(),m:S.cfg.pms[0],t:(pay?'Pago a ':'Cobro a ')+d.n,db:d.id});
+ d.p+=w;save();all();toast(pay?'Pago registrado: se restó de tu ahorro ✓':'Cobro registrado: se sumó a tu ahorro ✓')}if(d){S.debts=S.debts.filter(x=>x.id!=d);save();debts()}};
 async function sync(dir){
  const u=S.cfg.url;if(!u)return toast('Pega la URL de Apps Script en Ajustes');
  try{if(dir=='up'){await fetch(u,{method:'POST',mode:'no-cors',body:JSON.stringify({...S,cfg:{...S.cfg,url:'',auto:false}}),headers:{'Content-Type':'text/plain'}});toast('Subido a Google Sheets ☁️')}
@@ -315,8 +332,9 @@ $('#url').value=S.cfg.url||'';$('#auto').checked=!!S.cfg.auto;
 $('#url').oninput=e=>{S.cfg.url=e.target.value.trim();save()};$('#auto').onchange=e=>{S.cfg.auto=e.target.checked;save()};
 $('#up').onclick=()=>sync('up');$('#dw').onclick=()=>sync('down');
 if(S.cfg.url&&S.cfg.auto)sync('down');
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(applyFx(TD().slice(0,7),true))save();$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
 $('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});
+applyFx(TD().slice(0,7),true);save();
 all();
 </script>
 </body>
