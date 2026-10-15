@@ -99,7 +99,7 @@ h3:after{content:"";position:absolute;left:0;bottom:-1px;width:38px;height:2px;b
  <div class="chips"><div class="chip">⬆ Ingresos<b id="ti">0</b></div><div class="chip">⬇ Gastos<b id="tg">0</b></div><div class="chip">💰 Ahorro<b id="sr">0%</b></div></div></div>
  <div class="card"><h3>📅 Tu dinero de hoy</h3><div class="today"><div><div class="sub">Puedes gastar hoy</div><div class="n" id="al">—</div></div><div style="flex:1"><div class="sub" id="ts">Gastado hoy: 0</div><div class="bar"><i id="tb"></i></div></div></div></div>
  <div class="grid">
-  <div class="card kpi"><span class="sub">Saldo total acumulado</span><b id="bal">0</b></div>
+  <div class="card kpi"><span class="sub">Ahorro / saldo total acumulado</span><b id="bal">0</b></div>
   <div class="card kpi"><span class="sub">Promedio diario</span><b id="avg">0</b></div>
   <div class="card kpi"><span class="sub">Presupuesto restante</span><b id="left">0</b></div>
   <div class="card kpi"><span class="sub">Movimientos del mes</span><b id="cnt">0</b></div>
@@ -131,7 +131,7 @@ h3:after{content:"";position:absolute;left:0;bottom:-1px;width:38px;height:2px;b
  <div id="dbl"></div>
 </section>
 <section class="view" id="v-set">
- <div class="card"><h3>Variables</h3><div class="f"><div><label>Moneda</label><input id="cur"></div><div><label>Presupuesto mensual de gastos</label><input id="bud" type="number" inputmode="decimal"></div></div></div>
+ <div class="card"><h3>Variables</h3><div class="f"><div><label>Moneda</label><input id="cur"></div><div><label>Presupuesto mensual de gastos</label><input id="bud" type="number" inputmode="decimal"></div><div><label>Ahorro inicial (lo que ya tienes ahorrado)</label><input id="ini" type="number" inputmode="decimal" placeholder="Ej: 230"></div></div></div>
  <div class="card"><h3>Categorías de gasto (emoji, color, nombre, límite mensual)</h3><div id="catset"></div><button class="btn g" id="addcat">+ Agregar categoría</button></div>
  <div class="card"><h3>Métodos de pago e ingresos</h3><label>Métodos de pago (separados por coma)</label><input id="pms"><label style="margin-top:10px">Fuentes de ingreso (separadas por coma)</label><input id="ins"></div>
  <div class="card"><h3>Sincronización Google Sheets</h3><label>URL de Apps Script (termina en /exec)</label><input id="url" placeholder="https://script.google.com/macros/s/.../exec"><label style="margin:12px 0;display:flex;gap:8px;align-items:center"><input type="checkbox" id="auto" style="width:20px;height:20px"> Sincronizar automáticamente</label><div class="row"><button class="btn" id="up">☁ Subir ahora</button><button class="btn g" id="dw">⬇ Descargar</button></div><div class="sub" style="margin-top:8px">Funciona cuando la página está en tu propio hosting (GitHub Pages o Netlify).</div></div>
@@ -167,7 +167,7 @@ function dash(){
  const ms=new Set(S.items.map(i=>i.d.slice(0,7)));ms.add(TD().slice(0,7));ms.add(sel);
  $('#msel').innerHTML=[...ms].sort().reverse().map(m=>`<option value="${m}" ${m==sel?'selected':''}>${mname(m)}</option>`).join('');
  $('#ml').textContent=mname(sel);
- const it=inM(),inc=sum(it.filter(isI)),gs=it.filter(i=>!isI(i)),tot=sum(gs),all=sum(S.items.filter(isI))-sum(S.items.filter(i=>!isI(i)));
+ const it=inM(),inc=sum(it.filter(isI)),gs=it.filter(i=>!isI(i)),tot=sum(gs),all=sum(S.items.filter(isI))-sum(S.items.filter(i=>!isI(i)))+(+S.cfg.ini||0);
  count($('#tm'),inc-tot,prev);prev=inc-tot;
  $('#ti').textContent=money(inc);$('#tg').textContent=money(tot);$('#sr').textContent=inc?Math.round((inc-tot)/inc*100)+'%':'—';
  $('#bal').textContent=money(all);$('#cnt').textContent=it.length;
@@ -210,7 +210,7 @@ function goals(){
  $('#goals').innerHTML=S.goals.length?S.goals.map(g=>{const p=Math.min(100,g.s/g.t*100);return`<div class="card goal"><svg viewBox="0 0 42 42"><circle cx="21" cy="21" r="15.9" stroke="var(--bd)"/><circle cx="21" cy="21" r="15.9" stroke="${p>=100?'var(--ok)':'var(--ac)'}" stroke-linecap="round" stroke-dasharray="${p} 100"/></svg><div style="flex:1"><b>${esc(g.e)} ${esc(g.n)}</b><div class="sub">${money(g.s)} de ${money(g.t)} · ${Math.round(p)}%${p>=100?' 🎉':''}</div><div class="row" style="margin-top:8px"><input type="number" inputmode="decimal" placeholder="Aporte" id="ga${g.id}" style="flex:1;min-width:80px"><button class="btn" data-ga="${g.id}">＋</button><button class="x" data-gd="${g.id}">🗑️</button></div></div></div>`}).join(''):'<div class="card empty">Crea tu primera meta de ahorro 🎯</div>';
 }
 function sets(){
- $('#cur').value=S.cfg.cur;$('#bud').value=S.cfg.bud;$('#pms').value=S.cfg.pms.join(', ');$('#ins').value=S.cfg.ins.join(', ');
+ $('#cur').value=S.cfg.cur;$('#bud').value=S.cfg.bud;$('#ini').value=S.cfg.ini||'';$('#pms').value=S.cfg.pms.join(', ');$('#ins').value=S.cfg.ins.join(', ');
  $('#catset').innerHTML=S.cfg.cats.map((c,i)=>`<div class="cr"><input type="color" value="${c.c}" data-ci="${i}" data-k="c"><input value="${esc(c.e||'')}" data-ci="${i}" data-k="e"><input value="${esc(c.n)}" data-ci="${i}" data-k="n"><input type="number" value="${c.l||''}" placeholder="Límite" data-ci="${i}" data-k="l"><button class="x" data-dc="${i}">🗑️</button></div>`).join('');
 }
 function fill(){$('#c').innerHTML=(kind=='i'?S.cfg.ins:S.cfg.cats.map(c=>c.n)).map(c=>`<option>${esc(c)}</option>`).join('');$('#mp').innerHTML=S.cfg.pms.map(c=>`<option>${esc(c)}</option>`).join('');$('#cl').textContent=kind=='i'?'Fuente':'Categoría'}
@@ -234,7 +234,7 @@ $('#mo').onclick=e=>{const m=e.target.closest('.mc');if(m){sel=m.dataset.m;all()
 $('#gadd').onclick=()=>{const t=parseFloat($('#gt').value),n=$('#gn').value.trim();if(!n||!(t>0))return toast('Completa nombre y monto');S.goals.push({id:Date.now(),n,t,s:0,e:$('#ge').value||'🎯'});$('#gn').value='';$('#gt').value='';save();goals()};
 $('#goals').onclick=e=>{const a=e.target.dataset.ga,d=e.target.dataset.gd;if(a){const v=parseFloat($('#ga'+a).value);if(v>0){S.goals.find(g=>g.id==a).s+=v;save();goals();toast('Aporte agregado 💰')}}if(d){S.goals=S.goals.filter(g=>g.id!=d);save();goals()}};
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{document.querySelectorAll('nav button,.view').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#v-'+b.dataset.v).classList.add('on');if(b.dataset.v=='dash')dash();scrollTo({top:0})});
-$('#cur').oninput=e=>{S.cfg.cur=e.target.value||'S/';save()};$('#bud').oninput=e=>{S.cfg.bud=+e.target.value;save()};
+$('#cur').oninput=e=>{S.cfg.cur=e.target.value||'S/';save()};$('#bud').oninput=e=>{S.cfg.bud=+e.target.value;save()};$('#ini').oninput=e=>{S.cfg.ini=+e.target.value;save();dash()};
 $('#pms').onchange=e=>{S.cfg.pms=e.target.value.split(',').map(s=>s.trim()).filter(Boolean);save()};$('#ins').onchange=e=>{S.cfg.ins=e.target.value.split(',').map(s=>s.trim()).filter(Boolean);save()};
 $('#catset').oninput=e=>{const i=e.target.dataset.ci;if(i==null)return;const k=e.target.dataset.k,c=S.cfg.cats[i],old=c.n;c[k]=k=='l'?+e.target.value:e.target.value;if(k=='n')S.items.forEach(t=>{if(t.c==old&&!isI(t))t.c=e.target.value});save()};
 $('#catset').onclick=e=>{const i=e.target.dataset.dc;if(i!=null&&S.cfg.cats.length>1){S.cfg.cats.splice(i,1);save();sets()}};
