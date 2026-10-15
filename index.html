@@ -154,7 +154,7 @@ let S;try{S=JSON.parse(localStorage.getItem(KEY))}catch(e){}S=S||{};
 S.cfg=Object.assign(JSON.parse(JSON.stringify(DEF.cfg)),S.cfg);S.items=S.items||[];S.goals=S.goals||[];
 S.fixed=S.fixed||[{id:1,n:'Paramount+',e:'📺',p:0,dd:1,on:true},{id:2,n:'Spotify',e:'🎵',p:0,dd:1,on:true}];S.debts=S.debts||[];if(!S.seedI){S.fixed.push({id:3,n:'Sueldo',e:'💵',p:0,dd:1,on:true,k:'i'});S.seedI=1}
 let sel=TD().slice(0,7),editId=null,kind='g',prev=0;
-S.fxDone=S.fxDone||{};let _u=Date.now();const nid=()=>++_u;
+S.fxDone=S.fxDone||{};if(!S.fxFix){S.fxDone={};S.fxFix=1}let _u=Date.now();const nid=()=>++_u;
 const balance=()=>sum(S.items.filter(isI))-sum(S.items.filter(i=>!isI(i)))+(+S.cfg.ini||0);
 const needCat=(n,c,e)=>{if(!S.cfg.cats.find(x=>x.n==n))S.cfg.cats.push({n,c,e,l:0})};
 function applyFx(month,onlyDue,force){
@@ -168,7 +168,7 @@ function applyFx(month,onlyDue,force){
   S.items.push({id:nid(),k:inc?'i':'g',a:+f.p,c:inc?(f.n||'Ingreso fijo'):'Suscripciones',d:month+'-'+String(day).padStart(2,'0'),m:S.cfg.pms[0],t:f.n,fx:f.id});
   S.fxDone[key]=1;n++});
  return n}
-const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.cfg.url&&S.cfg.auto){clearTimeout(window._st);window._st=setTimeout(()=>sync('up'),1500)}};
+const save=()=>{S.dirty=1;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}if(S.cfg.url&&S.cfg.auto){clearTimeout(window._st);window._st=setTimeout(()=>sync('up'),1500)}};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const money=n=>S.cfg.cur+' '+(+n).toLocaleString('es-PE',{minimumFractionDigits:2,maximumFractionDigits:2});
 const cat=n=>S.cfg.cats.find(c=>c.n===n)||{c:'#8a98ad',e:'🏷️',l:0};
@@ -324,17 +324,25 @@ $('#dbl').onclick=e=>{const a=e.target.dataset.dp,d=e.target.dataset.dd;if(a){co
  d.p+=w;save();all();toast(pay?'Pago registrado: se restó de tu ahorro ✓':'Cobro registrado: se sumó a tu ahorro ✓')}if(d){S.debts=S.debts.filter(x=>x.id!=d);save();debts()}};
 async function sync(dir){
  const u=S.cfg.url;if(!u)return toast('Pega la URL de Apps Script en Ajustes');
- try{if(dir=='up'){await fetch(u,{method:'POST',mode:'no-cors',body:JSON.stringify({...S,cfg:{...S.cfg,url:'',auto:false}}),headers:{'Content-Type':'text/plain'}});toast('Subido a Google Sheets ☁️')}
- else{const r=await(await fetch(u)).json();if(r&&r.items){const c=S.cfg;S=Object.assign(S,r);S.cfg=Object.assign({},c,r.cfg,{url:c.url,auto:c.auto});try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}all();toast('Datos descargados ☁️')}else toast('La hoja aún no tiene datos')}}
+ try{if(dir=='up'){const body={...S,cfg:{...S.cfg,url:'',auto:false}};delete body.dirty;
+   await fetch(u,{method:'POST',mode:'no-cors',keepalive:JSON.stringify(body).length<60000,body:JSON.stringify(body),headers:{'Content-Type':'text/plain'}});
+   S.dirty=0;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}toast('Subido a Google Sheets ☁️')}
+  else{
+   if(S.dirty){toast('Tienes cambios sin subir: se subirán primero ☁️');return sync('up')}
+   const r=await(await fetch(u)).json();
+   if(S.dirty)return sync('up');
+   if(r&&r.items){const c=S.cfg,fx=S.fxDone||{};S=Object.assign(S,r);S.cfg=Object.assign({},c,r.cfg,{url:c.url,auto:c.auto});S.fxDone=Object.assign({},r.fxDone||{},fx);S.dirty=0;
+    if(applyFx(TD().slice(0,7),true))save();else{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
+    all();toast('Datos descargados ☁️')}else toast('La hoja aún no tiene datos')}}
  catch(e){toast('No se pudo sincronizar: revisa la URL (solo funciona en tu hosting)')}
 }
 $('#url').value=S.cfg.url||'';$('#auto').checked=!!S.cfg.auto;
 $('#url').oninput=e=>{S.cfg.url=e.target.value.trim();save()};$('#auto').onchange=e=>{S.cfg.auto=e.target.checked;save()};
 $('#up').onclick=()=>sync('up');$('#dw').onclick=()=>sync('down');
-if(S.cfg.url&&S.cfg.auto)sync('down');
-document.addEventListener('visibilitychange',()=>{if(!document.hidden){if(applyFx(TD().slice(0,7),true))save();$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
+if(S.cfg.url&&S.cfg.auto)sync(S.dirty?'up':'down');
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&S.dirty&&S.cfg.url&&S.cfg.auto)sync('up');if(!document.hidden){if(applyFx(TD().slice(0,7),true))save();$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
 $('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});
-applyFx(TD().slice(0,7),true);save();
+if(applyFx(TD().slice(0,7),true))save();
 all();
 </script>
 </body>
