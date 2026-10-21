@@ -165,7 +165,7 @@ a.btn{text-decoration:none;display:inline-block}
 
 <section class="view" id="v-doc">
  <div class="card"><h3>📎 Comprobantes y fotos</h3>
-  <div class="sub" style="margin-bottom:12px">Fotos de boletas, facturas, vouchers o capturas de Yape/Plin que adjuntaste a tus gastos e ingresos. Se guardan en este dispositivo.</div>
+  <div class="sub" style="margin-bottom:12px">Fotos de boletas, facturas, vouchers o capturas de Yape/Plin que adjuntaste a tus gastos e ingresos. Con la sincronización activa se respaldan en tu Google Drive y se ven en todos tus dispositivos.</div>
   <div class="f"><div><label>Mostrar</label><select id="pgf"><option value="all">Todos</option><option value="g">Solo gastos</option><option value="i">Solo ingresos</option><option value="none">Movimientos sin comprobante</option></select></div><div><label>Periodo</label><select id="pgm"><option value="m">Mes seleccionado</option><option value="a">Todo el historial</option></select></div><button class="btn" id="pgadd">＋ Agregar comprobante</button></div>
   <div class="sub" id="pgsum" style="margin-top:12px"></div></div>
  <div class="card"><div id="pgl"></div></div>
@@ -299,7 +299,7 @@ $('#save').onclick=async()=>{
  if(editId){const it=S.items.find(i=>i.id==editId);if(it.db){const d=S.debts.find(z=>z.id==it.db);if(d)d.p=Math.min(d.t,Math.max(0,d.p+a-it.a))}Object.assign(it,o)}else S.items.push({id:nid(),...o});
  sel=o.d.slice(0,7);save();closeM(false);all();toast(kind=='i'?'Ingreso guardado ✓':'Gasto guardado ✓');
 };
-$('#list').onclick=e=>{const pb=e.target.closest('[data-p]');if(pb)return openItemPv(pb.dataset.p);const x=e.target.dataset.x,ed=e.target.dataset.e;if(x){const it=S.items.find(i=>i.id==x);if(it&&it.ph)it.ph.forEach(p=>idbDel(p.id));if(it&&it.db){const d=S.debts.find(z=>z.id==it.db);if(d)d.p=Math.max(0,d.p-it.a)}S.items=S.items.filter(i=>i.id!=x);save();all();toast('Eliminado')}if(ed)openM(ed)};
+$('#list').onclick=e=>{const pb=e.target.closest('[data-p]');if(pb)return openItemPv(pb.dataset.p);const x=e.target.dataset.x,ed=e.target.dataset.e;if(x){const it=S.items.find(i=>i.id==x);if(it&&it.ph){delRemote(it.ph.map(p=>p.id));it.ph.forEach(p=>idbDel(p.id))}if(it&&it.db){const d=S.debts.find(z=>z.id==it.db);if(d)d.p=Math.max(0,d.p-it.a)}S.items=S.items.filter(i=>i.id!=x);save();all();toast('Eliminado')}if(ed)openM(ed)};
 $('#q').oninput=list;$('#msel').onchange=e=>{sel=e.target.value;all()};
 $('#mo').onclick=e=>{const m=e.target.closest('.mc');if(m){sel=m.dataset.m;all()}};
 $('#gadd').onclick=()=>{const t=parseFloat($('#gt').value),n=$('#gn').value.trim();if(!n||!(t>0))return toast('Completa nombre y monto');S.goals.push({id:Date.now(),n,t,s:0,e:$('#ge').value||'🎯'});$('#gn').value='';$('#gt').value='';save();goals()};
@@ -326,7 +326,7 @@ $('#file').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new File
    const k=String(r.Tipo||'').toLowerCase().startsWith('i')?'i':'g',c=r['Categoría']||'Otros';if(k=='g'&&!S.cfg.cats.find(x=>x.n==c))S.cfg.cats.push({n:c,c:'#8a98ad',e:'🏷️',l:0});
    S.items.push({id:Date.now()+n,k,a,c,d,m:r['Método']||S.cfg.pms[0],t:r['Descripción']||''});n++});save();all();toast(n+' movimientos importados')}catch(x){toast('No se pudo leer el archivo')}};
  rd.readAsArrayBuffer(f);e.target.value=''};
-$('#wipe').onclick=()=>{if(confirm('¿Borrar todos los datos? (incluye fotos y comprobantes)')){idbClear();S.items=[];S.goals=[];S.fxDone={};save();all();toast('Datos borrados')}};
+$('#wipe').onclick=()=>{if(confirm('¿Borrar todos los datos? (incluye fotos y comprobantes)')){delRemote(S.items.flatMap(i=>(i.ph||[]).map(p=>p.id)));idbClear();S.items=[];S.goals=[];S.fxDone={};save();all();toast('Datos borrados')}};
 
 let cmpA=null,cmpB=null,lastSel=null,cOpen=new Set();
 function cmp(){
@@ -380,7 +380,7 @@ $('#dbl').onclick=e=>{const a=e.target.dataset.dp,d=e.target.dataset.dd;if(a){co
  d.p+=w;save();all();toast(pay?'Pago registrado: se restó de tu ahorro ✓':'Cobro registrado: se sumó a tu ahorro ✓')}if(d){S.debts=S.debts.filter(x=>x.id!=d);save();debts()}};
 async function sync(dir){
  const u=S.cfg.url;if(!u)return toast('Pega la URL de Apps Script en Ajustes');
- try{if(dir=='up'){const body={...S,cfg:{...S.cfg,url:'',auto:false}};delete body.dirty;
+ try{if(dir=='up'){await upPhotos();const body={...S,cfg:{...S.cfg,url:'',auto:false}};delete body.dirty;
    await fetch(u,{method:'POST',mode:'no-cors',keepalive:JSON.stringify(body).length<60000,body:JSON.stringify(body),headers:{'Content-Type':'text/plain'}});
    S.dirty=0;try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}toast('Subido a Google Sheets ☁️')}
   else{
@@ -392,13 +392,7 @@ async function sync(dir){
     all();toast('Datos descargados ☁️')}else toast('La hoja aún no tiene datos')}}
  catch(e){toast('No se pudo sincronizar: revisa la URL (solo funciona en tu hosting)')}
 }
-$('#url').value=S.cfg.url||'';$('#auto').checked=!!S.cfg.auto;
-$('#url').oninput=e=>{S.cfg.url=e.target.value.trim();save()};$('#auto').onchange=e=>{S.cfg.auto=e.target.checked;save()};
-$('#up').onclick=()=>sync('up');$('#dw').onclick=()=>sync('down');
-if(S.cfg.url&&S.cfg.auto)sync(S.dirty?'up':'down');
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&S.dirty&&S.cfg.url&&S.cfg.auto)sync('up');if(!document.hidden){if(applyFx(TD().slice(0,7),true))save();$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
-$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});
-if(applyFx(TD().slice(0,7),true))save();
+
 // ===== Comprobantes / fotos (IndexedDB) =====
 let _db;
 const idb=()=>_db||(_db=new Promise((res,rej)=>{if(!window.indexedDB)return rej(new Error('no idb'));const q=indexedDB.open('fabzz-files',1);q.onupgradeneeded=()=>q.result.createObjectStore('f',{keyPath:'id'});q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)}));
@@ -406,7 +400,45 @@ const tx=async(m,fn)=>{const d=await idb();return new Promise((res,rej)=>{const 
 const uc=new Map(),fid=()=>Date.now()+'-'+Math.random().toString(36).slice(2,7);
 const idbPut=r=>tx('readwrite',s=>s.put(r)),idbGet=id=>tx('readonly',s=>s.get(id)).catch(()=>null),idbClear=()=>tx('readwrite',s=>s.clear()).catch(()=>{});
 const idbDel=id=>{[id,id+'t'].forEach(k=>{if(uc.has(k)){URL.revokeObjectURL(uc.get(k));uc.delete(k)}});return tx('readwrite',s=>s.delete(id)).catch(()=>{})};
-async function fileUrl(id,th){const k=id+(th?'t':'');if(uc.has(k))return uc.get(k);const r=await idbGet(id);if(!r)return null;const u=URL.createObjectURL(th?(r.th||r.blob):r.blob);uc.set(k,u);return u}
+const b64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(b)});
+const pulls=new Map();
+function pull(id,th){
+ const u=S.cfg.url;if(!u)return Promise.resolve(null);const k=id+(th?'t':'');
+ if(pulls.has(k))return pulls.get(k);
+ const pr=(async()=>{try{
+  const j=await(await fetch(u+'?f='+encodeURIComponent(id)+(th?'&th=1':''))).json();
+  if(!j||!j.d)return null;
+  const blob=await(await fetch('data:'+j.m+';base64,'+j.d)).blob();
+  const r=(await idbGet(id))||{id,t:j.t,n:j.n};
+  if(th)r.th=blob;else r.blob=blob;
+  await idbPut(r);return blob}catch(e){return null}finally{pulls.delete(k)}})();
+ pulls.set(k,pr);return pr}
+async function fileUrl(id,th){
+ const k=id+(th?'t':'');if(uc.has(k))return uc.get(k);
+ const r=await idbGet(id);let b=r&&(th?(r.th||r.blob):r.blob);
+ if(!b)b=await pull(id,th);
+ if(!b&&th)b=await pull(id,false);
+ if(!b)return null;
+ const u=URL.createObjectURL(b);uc.set(k,u);return u}
+let upBusy=false;
+async function upPhotos(){
+ const u=S.cfg.url;if(!u||upBusy)return 0;
+ const todo=[];S.items.forEach(i=>(i.ph||[]).forEach(p=>{if(!p.u)todo.push(p)}));
+ if(!todo.length)return 0;
+ upBusy=true;let n=0;toast('Subiendo '+todo.length+' foto(s) a Drive…');
+ try{for(const p of todo){
+  try{
+   const r=await idbGet(p.id);if(!r||!r.blob)continue;
+   const body={up:1,id:p.id,n:p.n,t:p.t,d:await b64(r.blob),th:r.th?await b64(r.th):''};
+   await fetch(u,{method:'POST',mode:'no-cors',body:JSON.stringify(body),headers:{'Content-Type':'text/plain'}});
+   const ok=await(await fetch(u+'?chk='+encodeURIComponent(p.id))).text();
+   if(ok.trim()=='1'){p.u=1;n++}
+  }catch(e){}
+ }}finally{upBusy=false}
+ return n}
+function delRemote(ids){
+ const u=S.cfg.url;if(!u||!ids||!ids.length)return;
+ try{fetch(u,{method:'POST',mode:'no-cors',body:JSON.stringify({del:ids}),headers:{'Content-Type':'text/plain'}})}catch(e){}}
 async function prep(f){
  let bm;try{bm=await createImageBitmap(f,{imageOrientation:'from-image'})}catch(e){bm=await new Promise((res,rej)=>{const im=new Image(),u=URL.createObjectURL(f);im.onload=()=>{URL.revokeObjectURL(u);res(im)};im.onerror=rej;im.src=u})}
  const W=bm.width||bm.naturalWidth,H=bm.height||bm.naturalHeight;
@@ -429,7 +461,7 @@ function renderPh(){
  $('#pst').innerHTML=pend.map((p,i)=>`<div class="pt" data-i="${i}">${p.t=='pdf'?'<span class="pdf">PDF</span>':'<img alt="">'}<button type="button" class="rm" data-rm="${i}" aria-label="Quitar">×</button></div>`).join('');
  pend.forEach((p,i)=>{if(p.t!='pdf')fileUrl(p.id,1).then(u=>{const im=$('#pst .pt[data-i="'+i+'"] img');if(im&&u)im.src=u})});
 }
-async function commitPh(){await Promise.all(rem.map(idbDel));rem=[];newIds=[];return pend.map(p=>({id:p.id,n:p.n,t:p.t}))}
+async function commitPh(){await Promise.all(rem.map(idbDel));delRemote(rem);rem=[];newIds=[];return pend.map(p=>p.u?{id:p.id,n:p.n,t:p.t,u:1}:{id:p.id,n:p.n,t:p.t})}
 function closeM(discard){if(discard)newIds.forEach(idbDel);pend=[];newIds=[];rem=[];$('#pst').innerHTML='';$('#md').classList.remove('on')}
 $('#pcam').onclick=()=>$('#pfc').click();$('#pgal').onclick=()=>$('#pf').click();
 $('#pfc').onchange=$('#pf').onchange=e=>{const fs=[...e.target.files];e.target.value='';if(fs.length)addFiles(fs)};
@@ -446,7 +478,7 @@ async function pvShow(){
  $('#pve').style.display=f.mid?'':'none';
  const multi=pvL.length>1;$('#pvp').style.display=$('#pvnx').style.display=multi?'':'none';
  $('#pvs').innerHTML='';const u=await fileUrl(f.id);if(pvL[pvI]!==f)return;
- if(!u){$('#pdl').style.display='none';$('#pvs').innerHTML='<div style="max-width:320px;text-align:center;opacity:.8;font-size:14px">Este archivo no está en este dispositivo. Las fotos se guardan solo en el equipo donde se adjuntaron.</div>';return}
+ if(!u){$('#pdl').style.display='none';$('#pvs').innerHTML='<div style="max-width:320px;text-align:center;opacity:.8;font-size:14px">No se pudo cargar este archivo. Revisa tu conexión y que la foto ya se haya subido a Drive (Ajustes → Subir), luego intenta de nuevo.</div>';return}
  const a=$('#pdl');a.style.display='';a.href=u;a.download=f.n||('comprobante-'+f.id);
  $('#pvs').innerHTML=f.t=='pdf'?'<a class="btn" target="_blank" rel="noopener" href="'+u+'">Abrir PDF</a>':'<img alt="Comprobante" src="'+u+'">';
 }
@@ -466,18 +498,25 @@ function docs(){
  if(!$('#v-doc').classList.contains('on'))return;
  const f=$('#pgf').value,ah=$('#pgm').value=='a',has=i=>i.ph&&i.ph.length;
  const it=(ah?S.items:inM()).slice().sort((a,b)=>b.d.localeCompare(a.d)||b.id-a.id),np=it.filter(i=>!has(i)),wp=it.filter(has);
- $('#pgsum').textContent=wp.reduce((s,i)=>s+i.ph.length,0)+' archivo(s) en '+wp.length+' movimiento(s) · '+np.length+' sin comprobante · '+(ah?'todo el historial':mname(sel));
+ $('#pgsum').textContent=wp.reduce((s,i)=>s+i.ph.length,0)+' archivo(s) en '+wp.length+' movimiento(s) · '+np.length+' sin comprobante'+(S.cfg.url?(()=>{const q=wp.reduce((s,i)=>s+i.ph.filter(p=>!p.u).length,0);return q?' · '+q+' por subir a Drive':' · todo respaldado en Drive'})():' · solo en este dispositivo')+' · '+(ah?'todo el historial':mname(sel));
  const box=$('#pgl');
  if(f=='none'){dflat=[];box.innerHTML=np.length?np.map(i=>`<div class="it"><div class="m"><b>${esc(i.t||i.c)}</b><span>${isI(i)?'Ingreso':'Gasto'} · ${esc(i.c)} · ${i.d}</span></div><span class="amt ${isI(i)?'pos':''}">${isI(i)?'+':'−'}${money(i.a)}</span><button class="btn g" data-e="${i.id}" style="padding:6px 10px">Adjuntar</button></div>`).join(''):'<div class="empty">Todos tus movimientos de este periodo tienen comprobante.</div>';return}
  dflat=[];wp.filter(i=>f=='all'||(f=='g'?!isI(i):isI(i))).forEach(i=>i.ph.forEach(p=>dflat.push({...p,mid:i.id,i,cap:(isI(i)?'Ingreso':'Gasto')+' · '+money(i.a)+' · '+i.d+(i.t?' · '+i.t:'')})));
  box.innerHTML=dflat.length?'<div class="pg">'+dflat.map((p,k)=>`<div class="ptile" data-k="${k}"><div class="im">${p.t=='pdf'?'<span class="pdf">PDF</span>':'<img alt="" data-th="'+p.id+'">'}</div><div class="tx"><b class="${isI(p.i)?'pos':''}">${isI(p.i)?'+':'−'}${money(p.i.a)}</b><span class="sub">${esc(p.i.t||p.i.c)}</span><span class="sub">${p.i.d}</span></div></div>`).join('')+'</div>':'<div class="empty">Aún no hay comprobantes aquí. Toca “Agregar comprobante” o adjúntalos al registrar un gasto o ingreso.</div>';
- box.querySelectorAll('img[data-th]').forEach(im=>fileUrl(im.dataset.th,1).then(u=>{if(u)im.src=u;else if(im.parentElement)im.parentElement.innerHTML='<span class="sub" style="font-size:11px">No disponible en este dispositivo</span>'}));
+ box.querySelectorAll('img[data-th]').forEach(im=>fileUrl(im.dataset.th,1).then(u=>{if(u)im.src=u;else if(im.parentElement)im.parentElement.innerHTML='<span class="sub" style="font-size:11px">No se pudo cargar</span>'}));
 }
 $('#pgf').onchange=$('#pgm').onchange=docs;
 $('#pgadd').onclick=()=>{openM();$('#pf').click()};
 $('#pgl').onclick=e=>{const t=e.target.closest('.ptile');if(t){pvL=dflat;pvI=+t.dataset.k;pvOpen();return}const b=e.target.closest('[data-e]');if(b)openM(b.dataset.e)};
 // limpieza de archivos huérfanos (más de 1 día sin movimiento asociado)
 (async()=>{try{if(!S.items.length)return;const ks=await tx('readonly',s=>s.getAllKeys()),used=new Set();S.items.forEach(i=>(i.ph||[]).forEach(p=>used.add(p.id)));(ks||[]).forEach(k=>{if(!used.has(k)&&Date.now()-parseInt(k)>864e5)idbDel(k)})}catch(e){}})();
+$('#url').value=S.cfg.url||'';$('#auto').checked=!!S.cfg.auto;
+$('#url').oninput=e=>{S.cfg.url=e.target.value.trim();save()};$('#auto').onchange=e=>{S.cfg.auto=e.target.checked;save()};
+$('#up').onclick=()=>sync('up');$('#dw').onclick=()=>sync('down');
+if(S.cfg.url&&S.cfg.auto)sync(S.dirty?'up':'down');
+document.addEventListener('visibilitychange',()=>{if(document.hidden&&S.dirty&&S.cfg.url&&S.cfg.auto)sync('up');if(!document.hidden){if(applyFx(TD().slice(0,7),true))save();$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});all()}});
+$('#today').textContent=new Date().toLocaleDateString('es-PE',{weekday:'long',day:'numeric',month:'long'});
+if(applyFx(TD().slice(0,7),true))save();
 all();
 </script>
 
